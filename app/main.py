@@ -27,7 +27,7 @@ def main():
 
                 query = command_with_args[1]
                 if query in list_buildin_cmd:
-                    print(f"{query} is a shell buildin")
+                    print(f"{query} is a shell builtin")
                 else:
                     path_env = os.environ.get('PATH', '')
                     found = False
