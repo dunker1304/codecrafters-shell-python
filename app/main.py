@@ -1,4 +1,5 @@
 import sys
+import os
 
 list_buildin_cmd = ['exit', 'echo', 'type']
 
@@ -21,14 +22,33 @@ def main():
             case "echo":
                 print(" ".join(command_with_args[1:]))
             case "type":
-                after_cmd = " ".join(command_with_args[1:])
-                if after_cmd in list_buildin_cmd:
-                    print(f"{after_cmd} is a shell builtin")
+                if len(command_with_args) < 2:
+                    continue
+
+                query = command_with_args[1]
+                if query in list_buildin_cmd:
+                    print(f"{query} is a shell buildin")
                 else:
-                    print(f"{after_cmd}: not found")
+                    path_env = os.environ.get('PATH', '')
+                    found = False
+                    for d in path_env.split(':'):
+                        if not d:
+                            continue
+                        candidate = os.path.join(d, query)
+                        if os.path.isfile(candidate):
+                            if os.access(candidate, os.X_OK):
+                                print(f"{query} is {candidate}")
+                                found = True
+                                break
+                            else:
+                                continue
+
+                    if not found:
+                        print(f"{query}: not found")
+
             case _:
                 print(f"{command}: command not found")
-
+        
 
 if __name__ == "__main__":
     main()
