@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 
-list_buildin_cmd = ['exit', 'echo', 'type', 'pwd']
+list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd']
 
 def find_executable(command):
     path_env = os.environ.get('PATH', '')
@@ -50,6 +50,12 @@ def main():
 
             case "pwd":
                 print(os.getcwd())
+
+            case "cd":
+                try:
+                    os.chdir(command_with_args[1])
+                except Exception as e:
+                    print(f"cd: {command_with_args[1]}: No such file or directory")
 
             case _:
                 executable_path = find_executable(command)
