@@ -1,6 +1,7 @@
 import sys
 import os
 import subprocess
+from pathlib import Path
 
 list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd']
 
@@ -53,6 +54,14 @@ def main():
 
             case "cd":
                 try:
+                    if len(command_with_args) < 2:
+                        os.chdir(Path.home())
+                        continue
+                    
+                    if command_with_args[1] == '~':
+                        os.chdir(Path.home())
+                        continue
+
                     os.chdir(command_with_args[1])
                 except Exception as e:
                     print(f"cd: {command_with_args[1]}: No such file or directory")
