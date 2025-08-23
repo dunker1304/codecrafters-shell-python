@@ -52,8 +52,9 @@ def main():
                 executable_path = find_executable(command)
                 if executable_path:
                     try:
+                        # [executable_path] + command_with_args[1:],
                         result = subprocess.run(
-                            [executable_path] + command_with_args[1:],
+                            command_with_args,
                             capture_output=True,
                             text=True,
                             timeout=20
