@@ -1,0 +1,2 @@
+- [ ] Job Control: https://www.gnu.org/software/bash/manual/bash.html#Job-Control
+- [ ] Variable Interpolation

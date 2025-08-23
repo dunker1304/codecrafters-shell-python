@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 
-list_buildin_cmd = ['exit', 'echo', 'type']
+list_buildin_cmd = ['exit', 'echo', 'type', 'pwd']
 
 def find_executable(command):
     path_env = os.environ.get('PATH', '')
@@ -47,6 +47,9 @@ def main():
                         print(f"{query} is {executable_path}")
                     else:
                         print(f"{query} not found") 
+
+            case "pwd":
+                print(os.getcwd())
 
             case _:
                 executable_path = find_executable(command)
