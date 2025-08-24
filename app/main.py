@@ -30,10 +30,18 @@ def parse_command_line(input_line):
             in_single_quote = not in_single_quote
         elif char == '"' and not in_single_quote:
             in_double_quote = not in_double_quote
-        elif char == "\\" and not in_double_quote and not in_single_quote:
-            if i + 1 < len(input_line):
-                current_arg += input_line[i+1]
-                i += 1        
+        elif char == "\\":
+            if not in_double_quote and not in_single_quote:
+                if i + 1 < len(input_line):
+                    current_arg += input_line[i+1]
+                    i += 1        
+            else:
+                if i + 1 < len(input_line):
+                    if input_line[i+1] == '\\' or (input_line[i+1] == '"' and not in_single_quote):
+                        current_arg += input_line[i+1]
+                        i += 1
+                    else:
+                        current_arg += char
         elif char == ' ' and not in_double_quote and not in_single_quote:
             if current_arg:
                 args.append(current_arg)
