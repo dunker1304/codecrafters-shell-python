@@ -15,7 +15,29 @@ def find_executable(command):
             return candidate
 
     return None                
-            
+
+def parse_command_line(input_line):
+    args = []
+    current_arg = ""
+    in_single_quote = False
+    in_double_quote = False
+
+    for char in input_line:
+        if char == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+        elif char == ' ' and not in_double_quote and not in_single_quote:
+            if current_arg:
+                args.append(current_arg)
+                current_arg = ""
+        else:
+            current_arg += char
+
+    if current_arg:
+        args.append(current_arg)
+
+    return args
 
 def main():
     # Uncomment this block to pass the first stage
@@ -27,7 +49,7 @@ def main():
         if input_line == "":
             continue
 
-        command_with_args = input_line.split()
+        command_with_args = parse_command_line(input_line)
         command = command_with_args[0]
 
         match command:
