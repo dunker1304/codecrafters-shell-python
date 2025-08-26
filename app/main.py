@@ -56,6 +56,51 @@ def parse_command_line(input_line):
 
     return args
 
+def extract_stdout_redirection(args):
+    if len(args) < 2:
+        return args, None
+    
+    cleaned = []
+    stdout_path = None
+    i = 0
+
+    while i < len(args):
+        token = args[i]
+        if token in ('>', '1>'):
+            if i + 1 < len(args):
+                stdout_path = args[i + 1]
+                i += 2
+                continue
+            else:
+                # No filename provided; ignore malformed redirection
+                i += 1
+                continue
+
+        # support form like '>file' and '1>file'
+        if token.startswith('>') and len(token) > 1:
+            stdout_path = token[1:]
+            i += 1
+            continue
+        if token.startswith('1>') and len(token) > 2:
+            stdout_path = token[2:]
+            i += 1
+            continue
+        
+        cleaned.append(token)
+        i += 1
+
+    return cleaned, stdout_path
+
+def cprint(text, file=None):
+    try:
+        if file:
+            with open(file, 'w') as f:
+                f.write(text)
+        else:
+            print(text)
+    except Exception as e:
+        print(f"Error: {e}")
+
 def main():
     # Uncomment this block to pass the first stage
     while True:
@@ -67,13 +112,17 @@ def main():
             continue
 
         command_with_args = parse_command_line(input_line)
+        command_with_args, stdout_redirect = extract_stdout_redirection(command_with_args)
         command = command_with_args[0]
 
         match command:
             case "exit":
                 break
             case "echo":
-                print(" ".join(command_with_args[1:]))
+                if stdout_redirect:
+                    cprint(" ".join(command_with_args[1:]) + "\n", stdout_redirect)
+                else:
+                    cprint(" ".join(command_with_args[1:]))
             case "type":
                 if len(command_with_args) < 2:
                     continue
@@ -118,13 +167,16 @@ def main():
                         )
 
                         if result.stdout:
-                            print(result.stdout, end='')
+                            if stdout_redirect:
+                                cprint(result.stdout, stdout_redirect)
+                            else:
+                                print(result.stdout, end='')
                         
                         if result.stderr:
                             print(result.stderr, end='')
 
-                        if result.returncode != 0:
-                            sys.exit(result.returncode)
+                        # if result.returncode != 0:
+                        #     sys.exit(result.returncode)
 
                     except subprocess.TimeoutExpired:
                         print(f"{command}: command time out")
