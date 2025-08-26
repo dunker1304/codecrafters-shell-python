@@ -58,10 +58,11 @@ def parse_command_line(input_line):
 
 def extract_stdout_redirection(args):
     if len(args) < 2:
-        return args, None
+        return args, None, None
     
     cleaned = []
     stdout_path = None
+    stderr_path = None
     i = 0
 
     while i < len(args):
@@ -76,6 +77,15 @@ def extract_stdout_redirection(args):
                 i += 1
                 continue
 
+        if token == '2>':
+            if i + 1 < len(args):
+                stderr_path = args[i + 1]
+                i += 2
+                continue
+
+            i += 1
+            continue
+
         # support form like '>file' and '1>file'
         if token.startswith('>') and len(token) > 1:
             stdout_path = token[1:]
@@ -85,11 +95,15 @@ def extract_stdout_redirection(args):
             stdout_path = token[2:]
             i += 1
             continue
+        if token.startswith('2>') and len(token) > 2:
+            stderr_path = token[2:]
+            i += 1
+            continue
         
         cleaned.append(token)
         i += 1
 
-    return cleaned, stdout_path
+    return cleaned, stdout_path, stderr_path
 
 def cprint(text, file=None):
     try:
@@ -112,7 +126,7 @@ def main():
             continue
 
         command_with_args = parse_command_line(input_line)
-        command_with_args, stdout_redirect = extract_stdout_redirection(command_with_args)
+        command_with_args, stdout_redirect, stderr_redirect = extract_stdout_redirection(command_with_args)
         command = command_with_args[0]
 
         match command:
@@ -173,7 +187,10 @@ def main():
                                 print(result.stdout, end='')
                         
                         if result.stderr:
-                            print(result.stderr, end='')
+                            if stderr_redirect:
+                                cprint(result.stderr, stderr_redirect)
+                            else:
+                                print(result.stderr, end='')
 
                         # if result.returncode != 0:
                         #     sys.exit(result.returncode)
