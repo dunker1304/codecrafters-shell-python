@@ -97,6 +97,16 @@ def extract_stdout_redirection(args):
             i += 1
             continue
 
+        if token == '2>>':
+            if i + 1 < len(args):
+                stderr_path = args[i + 1]
+                append = True
+                i += 2
+                continue
+            
+            i += 1
+            continue
+
         # support form like '>file' and '1>file'
         if token.startswith('>') and len(token) > 1:
             stdout_path = token[1:]
