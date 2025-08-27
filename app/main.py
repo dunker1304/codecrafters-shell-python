@@ -126,8 +126,20 @@ def main():
             continue
 
         command_with_args = parse_command_line(input_line)
-        command_with_args, stdout_redirect, stderr_redirect = extract_stdout_redirection(command_with_args)
         command = command_with_args[0]
+        command_with_args, stdout_redirect, stderr_redirect = extract_stdout_redirection(command_with_args)
+
+        # Create/truncate redirection targets up front so files exist even if nothing is written
+        if stdout_redirect:
+            try:
+                open(stdout_redirect, 'w').close()
+            except Exception:
+                pass
+        if stderr_redirect:
+            try:
+                open(stderr_redirect, 'w').close()
+            except Exception:
+                pass
 
         match command:
             case "exit":
