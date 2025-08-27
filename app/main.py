@@ -58,11 +58,12 @@ def parse_command_line(input_line):
 
 def extract_stdout_redirection(args):
     if len(args) < 2:
-        return args, None, None
+        return args, None, None, False
     
     cleaned = []
     stdout_path = None
     stderr_path = None
+    append = False
     i = 0
 
     while i < len(args):
@@ -86,6 +87,16 @@ def extract_stdout_redirection(args):
             i += 1
             continue
 
+        if token in ('>>', '1>>'):
+            if i + 1 < len(args):
+                stdout_path = args[i + 1]
+                append = True
+                i += 2
+                continue
+            
+            i += 1
+            continue
+
         # support form like '>file' and '1>file'
         if token.startswith('>') and len(token) > 1:
             stdout_path = token[1:]
@@ -103,12 +114,13 @@ def extract_stdout_redirection(args):
         cleaned.append(token)
         i += 1
 
-    return cleaned, stdout_path, stderr_path
+    return cleaned, stdout_path, stderr_path, append
 
-def cprint(text, file=None):
+def cprint(text, file=None, append=False):
+    mode = 'w' if not append else 'a'
     try:
         if file:
-            with open(file, 'w') as f:
+            with open(file, mode) as f:
                 f.write(text)
         else:
             print(text)
@@ -127,17 +139,18 @@ def main():
 
         command_with_args = parse_command_line(input_line)
         command = command_with_args[0]
-        command_with_args, stdout_redirect, stderr_redirect = extract_stdout_redirection(command_with_args)
+        command_with_args, stdout_redirect, stderr_redirect, append = extract_stdout_redirection(command_with_args)
 
         # Create/truncate redirection targets up front so files exist even if nothing is written
+        mode = 'w' if not append else 'a'
         if stdout_redirect:
             try:
-                open(stdout_redirect, 'w').close()
+                open(stdout_redirect, mode).close()
             except Exception:
                 pass
         if stderr_redirect:
             try:
-                open(stderr_redirect, 'w').close()
+                open(stderr_redirect, mode).close()
             except Exception:
                 pass
 
@@ -146,7 +159,7 @@ def main():
                 break
             case "echo":
                 if stdout_redirect:
-                    cprint(" ".join(command_with_args[1:]) + "\n", stdout_redirect)
+                    cprint(" ".join(command_with_args[1:]) + "\n", stdout_redirect, append)
                 else:
                     cprint(" ".join(command_with_args[1:]))
             case "type":
@@ -194,13 +207,13 @@ def main():
 
                         if result.stdout:
                             if stdout_redirect:
-                                cprint(result.stdout, stdout_redirect)
+                                cprint(result.stdout, stdout_redirect, append)
                             else:
                                 print(result.stdout, end='')
                         
                         if result.stderr:
                             if stderr_redirect:
-                                cprint(result.stderr, stderr_redirect)
+                                cprint(result.stderr, stderr_redirect, append)
                             else:
                                 print(result.stderr, end='')
 

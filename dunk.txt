@@ -1,1 +1,9 @@
-ls: nonexistent: No such file or directory
+aaaaa
+app
+codecrafters.yml
+dunk.txt
+Pipfile
+Pipfile.lock
+README.md
+todo.md
+your_program.sh
