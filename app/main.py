@@ -2,6 +2,7 @@ import sys
 import os
 import subprocess
 from pathlib import Path
+import readline
 
 list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd']
 
@@ -137,8 +138,16 @@ def cprint(text, file=None, append=False):
     except Exception as e:
         print(f"Error: {e}")
 
+def completer(text, state):
+    options = [cmd for cmd in list_buildin_cmd if cmd.startswith(text)]
+    if state < len(options):
+        return options[state] + ' '
+    return None
+
 def main():
-    # Uncomment this block to pass the first stage
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")
+
     while True:
         sys.stdout.write("$ ")
 
