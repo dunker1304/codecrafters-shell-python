@@ -6,6 +6,24 @@ import readline
 
 list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd']
 
+def get_executables_in_path():
+    executables = set()
+    path_env = os.environ.get('PATH', '')
+
+    for directory in path_env.split(':'):
+        if not directory or not os.path.isdir(directory):
+            continue
+
+        try:
+            for filename in os.listdir(directory):
+                filepath = os.path.join(directory, filename)
+                if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
+                    executables.add(filename)
+        except (OSError, PermissionError):
+            continue
+
+    return list(executables)
+
 def find_executable(command):
     path_env = os.environ.get('PATH', '')
     for d in path_env.split(':'):
@@ -139,9 +157,16 @@ def cprint(text, file=None, append=False):
         print(f"Error: {e}")
 
 def completer(text, state):
-    options = [cmd for cmd in list_buildin_cmd if cmd.startswith(text)]
-    if state < len(options):
-        return options[state] + ' '
+    builtin_options = [cmd for cmd in list_buildin_cmd if cmd.startswith(text)]
+    external_options = []
+    if text:
+        executables = get_executables_in_path()
+        external_options = [exe for exe in executables if exe.startswith(text)]
+
+    all_options = builtin_options + external_options
+
+    if state < len(all_options):
+        return all_options[state] + ' '
     return None
 
 def main():
