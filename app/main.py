@@ -5,6 +5,9 @@ from pathlib import Path
 import readline
 
 list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd']
+last_completion_text = None
+last_matches = []
+tab_count = 0
 
 def get_executables_in_path():
     executables = set()
@@ -33,7 +36,7 @@ def find_executable(command):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
 
-    return None                
+    return None
 
 def parse_command_line(input_line):
     args = []
@@ -157,21 +160,71 @@ def cprint(text, file=None, append=False):
         print(f"Error: {e}")
 
 def completer(text, state):
-    builtin_options = [cmd for cmd in list_buildin_cmd if cmd.startswith(text)]
-    external_options = []
-    if text:
-        executables = get_executables_in_path()
-        external_options = [exe for exe in executables if exe.startswith(text)]
+    global last_completion_text, last_matches, tab_count
 
-    all_options = builtin_options + external_options
+    try:
+        if not text:
+            return None
+        
+        builtin_options = []
+        external_options = []
 
-    if state < len(all_options):
-        return all_options[state] + ' '
-    return None
+        all_options = last_matches
+
+        if text != last_completion_text:
+            builtin_options = [cmd for cmd in list_buildin_cmd if cmd.startswith(text)]
+
+            executables = get_executables_in_path()
+            external_options = [exe for exe in executables if exe.startswith(text)]
+
+            all_options = builtin_options + external_options
+            all_options = list(set(all_options))
+
+            last_completion_text = text
+            last_matches = all_options
+            tab_count = 1
+        else:
+            tab_count += 1
+
+        if len(all_options) == 0:
+            return None
+        elif len(all_options) == 1:
+            return all_options[0] + ' ' if state == 0 else None
+        else:
+            if tab_count == 1:
+                if state == 0:
+                    # ring the bell
+                    sys.stdout.write('\a')
+                    sys.stdout.flush()
+
+                    common_prefix = os.path.commonprefix(all_options)
+                    if (len(common_prefix) > len(text)):
+                        return common_prefix
+                
+                return None
+            
+            elif tab_count >= 2:
+                if state == 0:
+                    print()
+                    print("  ".join(sorted(all_options)))
+                    
+                    # redraw the prompt and current input
+                    sys.stdout.write("$ " + text)
+                    sys.stdout.flush()
+
+                return None
+            
+        return None
+    except Exception as e:
+        print(e)
 
 def main():
     readline.set_completer(completer)
-    readline.parse_and_bind("tab: complete")
+    doc = readline.__doc__ or ""
+    if "libedit" in doc:
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
 
     while True:
         sys.stdout.write("$ ")
