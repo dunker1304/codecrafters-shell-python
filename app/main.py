@@ -38,6 +38,39 @@ def find_executable(command):
 
     return None
 
+def parse_pipeline(input_line):
+    """ Parse command line into pipeline segments seperated by | """
+    pipeline_segments = []
+    current_segment = ""
+    in_single_quote = False
+    in_double_quote = False
+    i = 0
+
+    while i < len(input_line):
+        char = input_line[i]
+
+        if char == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+            current_segment += char
+        elif char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            current_segment += char
+        elif char == '|' and not in_double_quote and not in_single_quote:
+            if current_segment.strip():
+                pipeline_segments.append(current_segment.strip())
+
+            current_segment = ""
+        else:
+            current_segment += char
+
+        i += 1
+
+    if current_segment.strip():
+        pipeline_segments.append(current_segment.strip())
+
+
+    return pipeline_segments
+
 def parse_command_line(input_line):
     args = []
     current_arg = ""
@@ -197,6 +230,7 @@ def completer(text, state):
                     sys.stdout.write('\a')
                     sys.stdout.flush()
 
+                    # partial completion
                     common_prefix = os.path.commonprefix(all_options)
                     if (len(common_prefix) > len(text)):
                         return common_prefix
@@ -218,6 +252,199 @@ def completer(text, state):
     except Exception as e:
         print(e)
 
+def execute_single_command(command_line):
+    command_with_args = parse_command_line(command_line)
+    command = command_with_args[0]
+    command_with_args, stdout_redirect, stderr_redirect, append = extract_stdout_redirection(command_with_args)
+
+    # Create/truncate redirection targets up front so files exist even if nothing is written
+    mode = 'w' if not append else 'a'
+    if stdout_redirect:
+        try:
+            open(stdout_redirect, mode).close()
+        except Exception:
+            pass
+    if stderr_redirect:
+        try:
+            open(stderr_redirect, mode).close()
+        except Exception:
+            pass
+
+    match command:
+        case "exit":
+            sys.exit(0)
+        case "echo":
+            if stdout_redirect:
+                cprint(" ".join(command_with_args[1:]) + "\n", stdout_redirect, append)
+            else:
+                cprint(" ".join(command_with_args[1:]))
+        case "type":
+            if len(command_with_args) < 2:
+                return
+
+            query = command_with_args[1]
+            if query in list_buildin_cmd:
+                print(f"{query} is a shell builtin")
+            else:
+                executable_path = find_executable(query)
+                if executable_path:
+                    print(f"{query} is {executable_path}")
+                else:
+                    print(f"{query} not found") 
+
+        case "pwd":
+            print(os.getcwd())
+
+        case "cd":
+            try:
+                if len(command_with_args) < 2:
+                    os.chdir(Path.home())
+                    return
+                
+                if command_with_args[1] == '~':
+                    os.chdir(Path.home())
+                    return
+
+                os.chdir(command_with_args[1])
+            except Exception as e:
+                print(f"cd: {command_with_args[1]}: No such file or directory")
+
+        case _:
+            executable_path = find_executable(command)
+            if executable_path:
+                try:
+                    # [executable_path] + command_with_args[1:],
+                    result = subprocess.run(
+                        command_with_args,
+                        capture_output=True,
+                        text=True,
+                        timeout=20
+                    )
+
+                    if result.stdout:
+                        if stdout_redirect:
+                            cprint(result.stdout, stdout_redirect, append)
+                        else:
+                            print(result.stdout, end='')
+                    
+                    if result.stderr:
+                        if stderr_redirect:
+                            cprint(result.stderr, stderr_redirect, append)
+                        else:
+                            print(result.stderr, end='')
+
+                    # if result.returncode != 0:
+                    #     sys.exit(result.returncode)
+
+                except subprocess.TimeoutExpired:
+                    print(f"{command}: command time out")
+                except Exception as e:
+                    print(f"{command}: execution failed: {e}")
+            else:
+                print(f"{command}: command not found")
+
+def execute_pipeline(pipeline_segments):
+    processes = []
+
+    try:
+        for i, segment in enumerate(pipeline_segments):
+            command_with_args = parse_command_line(segment)
+            command = command_with_args[0]
+
+            if command in list_buildin_cmd:
+                if i < len(pipeline_segments) - 1:
+                    print(f"{command}: builtin commands cannot be used in the middle of a pipeline")
+                    return
+                break
+
+            executable_path = find_executable(command)
+            if not executable_path:
+                print(f"{command}: command not found")
+                return
+
+            stdin_source = None
+            if i == 0:
+                # first command uses normal stdin
+                stdin_source = None
+            else:
+                stdin_source = processes[i-1].stdout
+
+            stdout_dest = None
+            if i == len(pipeline_segments) - 1:
+                # last command outputs to normal stdout
+                stdout_dest = None
+            else:
+                stdout_dest = subprocess.PIPE
+
+            process = subprocess.Popen(
+                command_with_args,
+                stdin=stdin_source,
+                stdout=stdout_dest,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            processes.append(process)
+
+            #! CRITICAL
+            # close the previous process's stdout so it can receive EOF
+            if i > 0:
+                processes[i-1].stdout.close()
+
+        if len(processes) < len(pipeline_segments):
+            # the last command is a builtin
+            last_segment = pipeline_segments[-1]
+            command_with_args = parse_command_line(last_segment)
+            command = command_with_args[0]
+
+            if len(processes) > 0:
+                # read output from the last external process
+                last_process = processes[-1]
+                stdout, stderr = last_process.communicate()
+
+                if stderr:
+                    print(stderr, end="")
+
+                execute_builtin_with_input(command, command_with_args, stdout)
+            else:
+                execute_single_command(last_segment)
+
+        else:
+            # all commands are external
+            for process in processes:
+                stdout, stderr = process.communicate()
+                if stderr:
+                    print(stderr, end='')
+
+    except Exception as e:
+        print(f"Pipeline execution error: {e}")
+        # clean up any remaning processes
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+
+def execute_builtin_with_input(command, command_with_args, input_data):
+    # execute a builtin command with piped input
+    if command == "echo":
+        print(" ".join(command_with_args[1:]))
+    elif command == "type":
+        if len(command_with_args) >= 2:
+            query = command_with_args[1]
+            if query in list_buildin_cmd:
+                print(f"{query} is a shell builtin")
+            else:
+                executable_path = find_executable(query)
+                if executable_path:
+                    print(f"{query} is {executable_path}")
+                else:
+                    print(f"{query} not found")
+    else:
+        # For other builtins, we'll just execute them normally
+        # The piped input will be ignored
+        execute_single_command(" ".join(command_with_args))
+
+
+
 def main():
     readline.set_completer(completer)
     doc = readline.__doc__ or ""
@@ -234,95 +461,12 @@ def main():
         if input_line == "":
             continue
 
-        command_with_args = parse_command_line(input_line)
-        command = command_with_args[0]
-        command_with_args, stdout_redirect, stderr_redirect, append = extract_stdout_redirection(command_with_args)
+        pipeline_segments = parse_pipeline(input_line)
 
-        # Create/truncate redirection targets up front so files exist even if nothing is written
-        mode = 'w' if not append else 'a'
-        if stdout_redirect:
-            try:
-                open(stdout_redirect, mode).close()
-            except Exception:
-                pass
-        if stderr_redirect:
-            try:
-                open(stderr_redirect, mode).close()
-            except Exception:
-                pass
-
-        match command:
-            case "exit":
-                break
-            case "echo":
-                if stdout_redirect:
-                    cprint(" ".join(command_with_args[1:]) + "\n", stdout_redirect, append)
-                else:
-                    cprint(" ".join(command_with_args[1:]))
-            case "type":
-                if len(command_with_args) < 2:
-                    continue
-
-                query = command_with_args[1]
-                if query in list_buildin_cmd:
-                    print(f"{query} is a shell builtin")
-                else:
-                    executable_path = find_executable(query)
-                    if executable_path:
-                        print(f"{query} is {executable_path}")
-                    else:
-                        print(f"{query} not found") 
-
-            case "pwd":
-                print(os.getcwd())
-
-            case "cd":
-                try:
-                    if len(command_with_args) < 2:
-                        os.chdir(Path.home())
-                        continue
-                    
-                    if command_with_args[1] == '~':
-                        os.chdir(Path.home())
-                        continue
-
-                    os.chdir(command_with_args[1])
-                except Exception as e:
-                    print(f"cd: {command_with_args[1]}: No such file or directory")
-
-            case _:
-                executable_path = find_executable(command)
-                if executable_path:
-                    try:
-                        # [executable_path] + command_with_args[1:],
-                        result = subprocess.run(
-                            command_with_args,
-                            capture_output=True,
-                            text=True,
-                            timeout=20
-                        )
-
-                        if result.stdout:
-                            if stdout_redirect:
-                                cprint(result.stdout, stdout_redirect, append)
-                            else:
-                                print(result.stdout, end='')
-                        
-                        if result.stderr:
-                            if stderr_redirect:
-                                cprint(result.stderr, stderr_redirect, append)
-                            else:
-                                print(result.stderr, end='')
-
-                        # if result.returncode != 0:
-                        #     sys.exit(result.returncode)
-
-                    except subprocess.TimeoutExpired:
-                        print(f"{command}: command time out")
-                    except Exception as e:
-                        print(f"{command}: execution failed: {e}")
-                else:
-                    print(f"{command}: command not found")
+        if len(pipeline_segments) > 1:
+            execute_pipeline(pipeline_segments)
+        else:
+            execute_single_command(input_line)
         
 
 if __name__ == "__main__":
