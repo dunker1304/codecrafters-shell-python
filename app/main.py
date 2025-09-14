@@ -290,7 +290,7 @@ def execute_single_command(command_line):
                 if executable_path:
                     print(f"{query} is {executable_path}")
                 else:
-                    print(f"{query} not found") 
+                    print(f"{query} not found")
 
         case "pwd":
             print(os.getcwd())
@@ -352,66 +352,136 @@ def execute_pipeline(pipeline_segments):
             command = command_with_args[0]
 
             if command in list_buildin_cmd:
-                if i < len(pipeline_segments) - 1:
-                    print(f"{command}: builtin commands cannot be used in the middle of a pipeline")
+                if i == 0:
+                    # first command in pipeline - create a pipe and write to it
+                    read_pipe, write_pipe = os.pipe()
+                    with os.fdopen(write_pipe, 'w') as f:
+                        if command == "echo":
+                            f.write(" ".join(command_with_args[1:]) + "\n")
+                        elif command == "type":
+                            if len(command_with_args) >= 2:
+                                query = command_with_args[1]
+                                if query in list_buildin_cmd:
+                                    f.write(f"{query} is a shell builtin\n")
+                                else:
+                                    executable_path = find_executable(query)
+                                    if executable_path:
+                                        f.write(f"{query} is {executable_path}\n")
+                                    else:
+                                        f.write(f"{query} not found\n")
+
+                        elif command == "pwd":
+                            f.write(os.getcwd() + "\n")
+
+                    processes.append(('pipe', read_pipe))
+                elif i == len(pipeline_segments) - 1:
+                    # last command in pipeline - read from previous output
+                    if processes:
+                        if processes[-1][0] == 'pipe':
+                            with os.fdopen(processes[-1][1], 'r') as f:
+                                input_data = f.read()
+                        else:
+                            last_process = processes[-1][1]
+                            stdout, stderr = last_process.communicate()
+                            if stderr:
+                                print(stderr, end='')
+                            input_data = stdout
+
+                    # execute builtin command (most builtins ignore piped out)
+                    if command == 'echo':
+                        print(" ".join(command_with_args[1:]))
+                    elif command == 'type':
+                        if len(command_with_args) >= 2:
+                            query = command_with_args[1]
+                            if query in list_buildin_cmd:
+                                print(f"{query} is a shell builtin")
+                            else:
+                                executable_path = find_executable(query)
+                                if executable_path:
+                                    print(f"{query} is {executable_path}")
+                                else:
+                                    print(f"{query} not found")
+                    elif command == 'pwd':
+                        print(os.getcwd())
+                    elif command == 'cd':
+                        try:
+                            if len(command_with_args) < 2:
+                                os.chdir(Path.home())
+                            elif command_with_args[1] == '~':
+                                os.chdir(Path.home())
+                            else:
+                                os.chdir(command_with_args[1])
+                        except Exception as e:
+                            print(f"cd: {command_with_args[1]}: No such file or directory")
+
+                else:
+                    # middle command in pipeline - read from previous, write to next
+                    read_pipe, write_pipe = os.pipe()
+
+                    if processes[-1][0] == 'pipe':
+                        with os.fdopen(processes[-1][1], 'r') as f:
+                            input_data = f.read()
+                    else:
+                        last_process = processes[-1][1]
+                        stdout, stderr = last_process.communicate()
+                        if stderr:
+                            print(stderr, end='')
+                        input_data = stdout
+
+                    # Write to next
+                    with os.fdopen(write_pipe, 'w') as f:
+                        if command == "echo":
+                            f.write(" ".join(command_with_args[1:]) + "\n")
+                        elif command == "type":
+                            if len(command_with_args) >= 2:
+                                query = command_with_args[1]
+                                if query in list_buildin_cmd:
+                                    f.write(f"{query} is a shell builtin\n")
+                                else:
+                                    executable_path = find_executable(query)
+                                    if executable_path:
+                                        f.write(f"{query} is {executable_path}\n")
+                                    else:
+                                        f.write(f"{query} not found\n")
+                        elif command == "pwd":
+                            f.write(os.getcwd() + "\n")
+                    
+                    processes.append(('pipe', read_pipe))
+
+            else:
+                executable_path = find_executable(command)
+                if not executable_path:
+                    print(f"{command}: command not found")
                     return
-                break
 
-            executable_path = find_executable(command)
-            if not executable_path:
-                print(f"{command}: command not found")
-                return
-
-            stdin_source = None
-            if i == 0:
-                # first command uses normal stdin
                 stdin_source = None
-            else:
-                stdin_source = processes[i-1].stdout
+                if processes and processes[-1][0] == 'pipe':
+                    stdin_source = processes[-1][1]
+                elif processes and processes[-1][0] == 'process':
+                    stdin_source = processes[-1][1].stdout
 
-            stdout_dest = None
-            if i == len(pipeline_segments) - 1:
-                # last command outputs to normal stdout
                 stdout_dest = None
-            else:
-                stdout_dest = subprocess.PIPE
+                if i < len(pipeline_segments) - 1:
+                    stdout_dest = subprocess.PIPE
 
-            process = subprocess.Popen(
-                command_with_args,
-                stdin=stdin_source,
-                stdout=stdout_dest,
-                stderr=subprocess.PIPE,
-                text=True
-            )
+                process = subprocess.Popen(
+                    command_with_args,
+                    stdin=stdin_source,
+                    stdout=stdout_dest,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
 
-            processes.append(process)
+                processes.append(('process', process))
 
-            #! CRITICAL
-            # close the previous process's stdout so it can receive EOF
-            if i > 0:
-                processes[i-1].stdout.close()
+                #! CRITICAL
+                 # Close the previous process's stdout so it can receive EOF
+                if i > 0 and processes[-2][0] == 'process':
+                    processes[-2][1].stdout.close()
 
-        if len(processes) < len(pipeline_segments):
-            # the last command is a builtin
-            last_segment = pipeline_segments[-1]
-            command_with_args = parse_command_line(last_segment)
-            command = command_with_args[0]
-
-            if len(processes) > 0:
-                # read output from the last external process
-                last_process = processes[-1]
-                stdout, stderr = last_process.communicate()
-
-                if stderr:
-                    print(stderr, end="")
-
-                execute_builtin_with_input(command, command_with_args, stdout)
-            else:
-                execute_single_command(last_segment)
-
-        else:
-            # all commands are external
-            for process in processes:
+        # Wait for all external processes to complete
+        for process_type, process in processes:
+            if process_type == 'process':
                 stdout, stderr = process.communicate()
                 if stderr:
                     print(stderr, end='')
