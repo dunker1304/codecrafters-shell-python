@@ -312,8 +312,22 @@ def execute_single_command(command_line):
                 print(f"cd: {command_with_args[1]}: No such file or directory")
 
         case 'history':
-            for i, line in enumerate(history):
-                print(f"{i+1} {line}")
+            if len(command_with_args) < 2:
+                for i, line in enumerate(history):
+                    print(f"{i+1} {line}")
+            else:
+                try:
+                    num = int(command_with_args[1])
+                    if num > len(history):
+                        num = len(history)
+
+                    for i in range(num, 0, -1):
+                        idx = len(history) - i
+                        print(f"{idx+1} {history[idx]}")
+                except ValueError:
+                    print(f"history: {command_with_args[1]}: numeric argument required")
+                    return
+
         case _:
             executable_path = find_executable(command)
             if executable_path:
