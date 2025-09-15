@@ -8,6 +8,8 @@ list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd', 'history']
 last_completion_text = None
 last_matches = []
 tab_count = 0
+history = []
+
 
 def get_executables_in_path():
     executables = set()
@@ -309,6 +311,9 @@ def execute_single_command(command_line):
             except Exception as e:
                 print(f"cd: {command_with_args[1]}: No such file or directory")
 
+        case 'history':
+            for i, line in enumerate(history):
+                print(f"{i+1} {line}")
         case _:
             executable_path = find_executable(command)
             if executable_path:
@@ -530,7 +535,8 @@ def main():
         input_line = input()
         if input_line == "":
             continue
-
+        
+        history.append(input_line)
         pipeline_segments = parse_pipeline(input_line)
 
         if len(pipeline_segments) > 1:
