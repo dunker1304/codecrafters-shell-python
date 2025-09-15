@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 import readline
 
-list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd']
+list_buildin_cmd = ['exit', 'echo', 'type', 'pwd', 'cd', 'history']
 last_completion_text = None
 last_matches = []
 tab_count = 0
