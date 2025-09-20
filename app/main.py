@@ -330,6 +330,17 @@ def execute_single_command(command_line):
                                 print(f"history: {file_path}: {e}")
                     else:
                         print(f"history: {command_with_args[1]}: file argument required")
+                elif command_with_args[1] == '-w':
+                    if command_with_args[2]:
+                        file_path = command_with_args[2]
+                        try:
+                            with open(file_path, 'w+') as f:
+                                f.write('\n'.join(history))
+                                f.write('\n')
+                        except Exception as e:
+                            print(f"history: {file_path}: {e}")
+                    else:
+                        print(f"history: {command_with_args[1]}: file argument required")
                 else:
                     try:
                         num = int(command_with_args[1])
