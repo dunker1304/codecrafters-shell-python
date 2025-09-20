@@ -316,17 +316,32 @@ def execute_single_command(command_line):
                 for i, line in enumerate(history):
                     print(f"{i+1} {line}")
             else:
-                try:
-                    num = int(command_with_args[1])
-                    if num > len(history):
-                        num = len(history)
+                if command_with_args[1] == '-r':
+                    if command_with_args[2]:
+                        file_path = command_with_args[2]
+                        if os.path.exists(file_path):
+                            try:
+                                with open(file_path, 'r') as f:
+                                    file_history = [line.strip() for line in f.readlines() if line.strip()]
+                                # Append file history to current history
+                                history.extend(file_history)
+                                readline.read_history_file(file_path)
+                            except Exception as e:
+                                print(f"history: {file_path}: {e}")
+                    else:
+                        print(f"history: {command_with_args[1]}: file argument required")
+                else:
+                    try:
+                        num = int(command_with_args[1])
+                        if num > len(history):
+                            num = len(history)
 
-                    for i in range(num, 0, -1):
-                        idx = len(history) - i
-                        print(f"{idx+1} {history[idx]}")
-                except ValueError:
-                    print(f"history: {command_with_args[1]}: numeric argument required")
-                    return
+                        for i in range(num, 0, -1):
+                            idx = len(history) - i
+                            print(f"{idx+1} {history[idx]}")
+                    except ValueError:
+                        print(f"history: {command_with_args[1]}: numeric argument required")
+                        return
 
         case _:
             executable_path = find_executable(command)
