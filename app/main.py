@@ -543,10 +543,8 @@ def main():
         readline.parse_and_bind("tab: complete")
 
     while True:
-        sys.stdout.write("$ ")
-
-        # Wait for user input
-        input_line = input()
+        # Wait for user input with readline
+        input_line = input("$ ")
         if input_line == "":
             continue
         

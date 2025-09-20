@@ -2,6 +2,8 @@
 - [x] Redirect and append stdout, stderr
 - [x] Autocompletion
 - [x] Pipeline
+- [x] History
 
 - [ ] Job Control: https://www.gnu.org/software/bash/manual/bash.html#Job-Control
 - [ ] Variable Interpolation
+- [ ] history, auto complete without readline
