@@ -9,6 +9,7 @@ last_completion_text = None
 last_matches = []
 tab_count = 0
 history = []
+history_file_positions = {}
 
 
 def get_executables_in_path():
@@ -337,6 +338,20 @@ def execute_single_command(command_line):
                             with open(file_path, 'w+') as f:
                                 f.write('\n'.join(history))
                                 f.write('\n')
+                        except Exception as e:
+                            print(f"history: {file_path}: {e}")
+                    else:
+                        print(f"history: {command_with_args[1]}: file argument required")
+                elif command_with_args[1] == '-a':
+                    if command_with_args[2]:
+                        file_path = command_with_args[2]
+                        try:
+                            last_position = history_file_positions.get(file_path, 0)
+                            history_to_write = history[last_position:]
+                            with open(file_path, 'a') as f:
+                                f.write('\n'.join(history_to_write))
+                                f.write('\n')
+                            history_file_positions[file_path] = len(history)
                         except Exception as e:
                             print(f"history: {file_path}: {e}")
                     else:
