@@ -583,18 +583,18 @@ def main():
     else:
         readline.parse_and_bind("tab: complete")
 
-    hisfile = os.environ.get("HISTFILE")
-    if hisfile and os.path.exists(hisfile):
+    histfile = os.environ.get("HISTFILE")
+    if histfile and os.path.exists(histfile):
         try:
-            with open(hisfile, 'r') as f:
+            with open(histfile, 'r') as f:
                 file_history = [line.strip() for line in f.readlines() if line.strip()]
             history.extend(file_history)
             try:
-                readline.read_history_file(hisfile)
+                readline.read_history_file(histfile)
             except Exception:
                 pass
         except Exception as e:
-            print(f"Failed to read history from {hisfile}: {e}")
+            print(f"Failed to read history from {histfile}: {e}")
 
     while True:
         # Wait for user input with readline
@@ -603,6 +603,12 @@ def main():
             continue
         
         history.append(input_line)
+        if histfile:
+            try:
+                with open(histfile, 'a') as f:
+                    f.write(input_line + "\n")
+            except Exception as e:
+                print(f"Failed to write to history file {histfile}: {e}")
         pipeline_segments = parse_pipeline(input_line)
 
         if len(pipeline_segments) > 1:
