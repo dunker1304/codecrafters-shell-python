@@ -583,6 +583,19 @@ def main():
     else:
         readline.parse_and_bind("tab: complete")
 
+    hisfile = os.environ.get("HISTFILE")
+    if hisfile and os.path.exists(hisfile):
+        try:
+            with open(hisfile, 'r') as f:
+                file_history = [line.strip() for line in f.readlines() if line.strip()]
+            history.extend(file_history)
+            try:
+                readline.read_history_file(hisfile)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"Failed to read history from {hisfile}: {e}")
+
     while True:
         # Wait for user input with readline
         input_line = input("$ ")
